@@ -35,7 +35,17 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 
 	private const int FontSize = 22;
 	private const float MarginPx = 10f;
-	private const int UpdateEveryFrames = 8;
+	/// <summary>统计窗口（秒）—— 每累计这么久的**真实耗时**算一次 FPS。</summary>
+	private const double SampleWindowSec = 0.5;
+
+	/// <summary>
+	/// **诊断日志总开关（默认关）** —— 关掉后本 Mod 不输出任何 GD.Print。
+	/// 排查时置 true 重新构建即可（异常报告 GD.PrintErr 不受此开关影响，始终输出）。
+	/// </summary>
+	private static readonly bool EnableLog = false;
+
+	/// <summary>额外把每次算出的 FPS 值也打进日志（需 EnableLog 打开才有意义）。</summary>
+	private static readonly bool LogFps = false;
 	private static readonly Color TextColor = new Color(0.25f, 1.0f, 0.35f);
 
 	private SceneTree _tree;
@@ -44,6 +54,12 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 	private Label _label;
 	private int _frames;
 	private int _diag;
+	// ★ 自算 FPS 的累加器（不依赖 Engine.GetFramesPerSecond）
+	private ulong _lastMs;
+	private double _accTime;
+	private int _accFrames;
+	private int _fps;
+	private string _fpsText = "";
 	private bool _started;
 
 	public void Initialize(XWModRuntimeContext context)
@@ -121,14 +137,43 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 				}
 			}
 
-			// ① 数字：不必每帧写，每 N 帧一次
-			if (_frames % UpdateEveryFrames == 0)
+			// ① FPS：**自己按真实帧间隔统计**（不用 Engine.GetFramesPerSecond）
+			//    累计「帧数 ÷ 真实耗时」⇒ 与引擎内部的限帧/vsync 实现解耦，
+			//    Android 上改 FPS 上限后也能立刻反映（用户反馈手机端旧值不刷新的根因）。
+			// 用**墙上时间**（Time.GetTicksMsec）算真实经过的毫秒数 ——
+			// 比帧间隔更彻底：完全不受引擎限帧/vsync/低功耗模式影响。
+			double dt = 0.0;
+			try
 			{
-				string txt = Engine.GetFramesPerSecond().ToString();
-				if (_label.Text != txt)
+				ulong nowMs = Time.GetTicksMsec();
+				if (_lastMs > 0 && nowMs > _lastMs)
 				{
-					_label.Text = txt;
+					dt = (nowMs - _lastMs) / 1000.0;
 				}
+				_lastMs = nowMs;
+				if (dt > 1.0)
+				{
+					dt = 0.0;   // 切场景/暂停造成的长间隔不计入，避免把 FPS 拉爆
+				}
+			}
+			catch { }
+			_accTime += dt;
+			_accFrames++;
+			if (_accTime >= SampleWindowSec && _accFrames > 0)
+			{
+				double raw = _accFrames / _accTime;
+				_fps = (int)Math.Round(raw);
+				_accTime = 0.0;
+				_accFrames = 0;
+				if (LogFps)
+				{
+					Log("FPS=" + _fps);
+				}
+			}
+			string txt = _fps.ToString();
+			if (_label.Text != txt)
+			{
+				_label.Text = txt;
 			}
 
 			// ② 位置：按所选角落 + 视口尺寸每帧贴一次
@@ -191,7 +236,7 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 			_label.AddThemeColorOverride("font_color", TextColor);
 			_label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 1f));
 			_label.AddThemeConstantOverride("outline_size", 4);
-			_label.Text = "0";
+			_label.Text = "0";   // 第一次统计窗口走完前先显示 0
 			_layer.AddChild(_label);
 			Log("已创建 FPS 标签（CanvasLayer.Layer=128）。");
 		}
@@ -201,8 +246,18 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 		}
 	}
 
+	/// <summary>
+	/// 受 <see cref=EnableLog/> 门控的日志。
+	/// ⚠️ 方法体里**必须**是 GD.Print，绝不能写成 Log ——
+	///   本项目踩过：批量替换时把方法体自己也换了 ⇒ 无限递归 ⇒
+	///   StackOverflowException（catch 抓不住，直接终止线程）。
+	/// </summary>
 	private void Log(string msg)
 	{
+		if (!EnableLog)
+		{
+			return;
+		}
 		try { GD.Print(P + msg); } catch { }
 	}
 }
