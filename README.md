@@ -1,6 +1,6 @@
 # FPS 显示（FpsDisplay）
 
-> 在屏幕四角之一显示**实时 FPS**（纯数字）。
+> 在屏幕上显示**实时 FPS**（纯数字）。
 
 | 项目 | 内容 |
 | --- | --- |
@@ -10,38 +10,12 @@
 | 当前版本 | **1.0.1** |
 | 分类 | 工具与前置 |
 
-## 内部开关（源码顶部，改完重新构建）
-
-```csharp
-/// 显示在哪个角
-internal enum Corner { TopLeft = 0, TopRight = 1, BottomLeft = 2, BottomRight = 3 }
-private const Corner Where = Corner.TopLeft;   // ★ 默认左上
-
-/// 诊断日志总开关（默认关）—— 关掉后本 Mod 不输出任何 GD.Print
-private static readonly bool EnableLog = false;
-/// 额外把每次算出的 FPS 值也打进日志（需 EnableLog 打开）
-private static readonly bool LogFps = false;
-
-private const double SampleWindowSec = 0.5;    // 统计窗口（秒）
-private const int    FontSize        = 22;     // 字号
-private const float  MarginPx        = 10f;    // 离屏幕边缘的距离
-private static readonly Color TextColor = new Color(0.25f, 1.0f, 0.35f);  // 亮绿
-```
-
-数字带 **4px 黑描边**，在任何背景（草地 / 夜晚 / 关卡选择）上都清晰。
-
-换角落只要改 `Where` 一个常量，重新构建即可：
-
-```powershell
-python mods\FpsDisplay\build_and_install.py --install
-```
-
 ## 更新记录
 
 | 版本 | 内容 |
 | --- | --- |
 | **1.0.1** | FPS 改为**自己按真实帧间隔统计**（见下），修手机端改 FPS 上限后数值不刷新的问题；新增 `EnableLog` / `LogFps` 日志开关（默认关） |
-| 1.0.0 | 首版：四角可选、纯数字、黑描边 |
+| 1.0.0 | 首版：实时 FPS 纯数字显示，带黑描边 |
 
 ### 1.0.1 为什么不用 `Engine.GetFramesPerSecond()`
 
