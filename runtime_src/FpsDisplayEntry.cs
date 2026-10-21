@@ -300,7 +300,7 @@ public sealed class FpsDisplayEntry : IXWModRuntimeEntry
 			}
 
 			// ① 总开关：关掉就藏起来（字也不刷了）
-			if (true)    /* ★ 用户要求：日志默认关闭（原：!ReadBool(KShow, DefShow)） */
+			if (!ReadBool(KShow, DefShow))
 			{
 				if (_label != null && GodotObject.IsInstanceValid(_label) && _label.Visible)
 				{
